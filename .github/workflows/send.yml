@@ -1,3 +1,4 @@
+
 name: AI Sho Bot
 
 on:
@@ -16,7 +17,10 @@ jobs:
       - name: Install requests
         run: pip install requests
 
+      - name: Check bot file
+        run: cat bot.py
+
       - name: Run bot
-        run: python bot.py
+        run: python -u bot.py
         env:
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
