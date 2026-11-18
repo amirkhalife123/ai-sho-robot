@@ -1,0 +1,26 @@
+name: AI Sho Bot
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '30 20 * * *'
+    - cron: '54 22 * * *'
+    - cron: '18 1 * * *'
+    - cron: '42 3 * * *'
+    - cron: '6 6 * * *'
+    - cron: '30 8 * * *'
+    - cron: '54 10 * * *'
+    - cron: '18 13 * * *'
+    - cron: '42 15 * * *'
+    - cron: '6 18 * * *'
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Run bot
+        run: python bot.py
