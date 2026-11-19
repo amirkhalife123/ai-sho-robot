@@ -1,83 +1,163 @@
-
 import os
 import requests
-from datetime import datetime
-from zoneinfo import ZoneInfo
-
-BOT_TOKEN = os.environ.get("BOT_TOKEN")
-GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
-CHANNEL = "@ai_sho_1"
-
-if not BOT_TOKEN or not GROQ_API_KEY:
-    raise ValueError("کلیدهای ربات یا هوش مصنوعی پیدا نشدند!")
-
-hour = datetime.now(ZoneInfo("Asia/Tehran")).hour
-
-if 7 <= hour < 12:
-    topic = "معرفی یک ابزار کاربردی هوش مصنوعی"
-elif 12 <= hour < 18:
-    topic = "آموزش یک ترفند کاربردی هوش مصنوعی"
-else:
-    topic = "دانستنی جذاب درباره فناوری و هوش مصنوعی"
-
-prompt = f"""
-برای کانال تلگرام AI شو یک پست فارسی جذاب بنویس.
-
-موضوع: {topic}
-
-شرایط:
-- عنوان جذاب داشته باش.
-- متن کاربردی و قابل فهم باشد.
-- حداقل 150 و حداکثر 700 کاراکتر باشد.
-- بدون غلط املایی باشد.
-- اطلاعات ساختگی منتشر نکن.
-- در پایان یک سؤال از مخاطب بپرس.
-- فقط متن نهایی پست را بنویس.
-"""
-
-response = requests.post(
-    "https://api.groq.com/openai/v1/chat/completions",
-    headers={
-        "Authorization": f"Bearer {GROQ_API_KEY}",
-        "Content-Type": "application/json"
-    },
-    json={
-        "model": "openai/gpt-oss-20b",
-        "messages": [
-            {"role": "user", "content": prompt}
-        ],
-        "reasoning_effort": "low",
-        "temperature": 0.7,
-        "max_completion_tokens": 2048
-    },
-    timeout=90
+import logging
+from telegram import Update, ReplyKeyboardMarkup
+from telegram.ext import (
+    Application,
+    CommandHandler,
+    MessageHandler,
+    ContextTypes,
+    filters
 )
 
-response.raise_for_status()
+TOKEN = os.getenv("BOT_TOKEN")
+GROQ_KEY = os.getenv("GROQ_API_KEY")
 
-result = response.json()
-choice = result["choices"][0]
-message = choice["message"].get("content")
+API = "https://api.groq.com/openai/v1/chat/completions"
+MODEL = "openai/gpt-oss-20b"
 
-if not message or not message.strip():
-    raise ValueError(
-        f"متن هوش مصنوعی خالی است. "
-        f"پایان پاسخ: {choice.get('finish_reason')}"
+MENU = [
+    ["🤖 چت با هوش مصنوعی", "🌍 ترجمه متن"],
+    ["✍️ تولید متن", "🎮 بازی و سرگرمی"],
+    ["🧩 معما و اطلاعات", "📢 کانال رسمی AI شو"],
+    ["🏠 منوی اصلی"]
+]
+
+logging.basicConfig(level=logging.INFO)
+
+
+def ask_ai(prompt):
+    response = requests.post(
+        API,
+        headers={
+            "Authorization": f"Bearer {GROQ_KEY}",
+            "Content-Type": "application/json"
+        },
+        json={
+            "model": MODEL,
+            "messages": [
+                {
+                    "role": "system",
+                    "content": "تو دستیار فارسی‌زبان و مفید ربات AI شو هستی."
+                },
+                {"role": "user", "content": prompt}
+            ],
+            "temperature": 0.7,
+            "max_completion_tokens": 1200
+        },
+        timeout=60
+    )
+    response.raise_for_status()
+    return response.json()["choices"][0]["message"]["content"].strip()
+
+
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    context.user_data["mode"] = "chat"
+    keyboard = ReplyKeyboardMarkup(
+        MENU,
+        resize_keyboard=True
+    )
+    await update.message.reply_text(
+        "سلام! به ربات هوشمند AI شو خوش اومدی 🤖\n\n"
+        "از منوی زیر یکی از امکانات رو انتخاب کن.",
+        reply_markup=keyboard
     )
 
-message = message.strip()
 
-telegram = requests.post(
-    f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
-    data={
-        "chat_id": CHANNEL,
-        "text": "🤖 AI شو\n\n" + message
-    },
-    timeout=30
-)
+async def handle(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = update.message.text
+    mode = context.user_data.get("mode", "chat")
 
-telegram.raise_for_status()
+    if text == "📢 کانال رسمی AI شو":
+        await update.message.reply_text("https://t.me/ai_sho_1")
+        return
 
-print("پست با موفقیت تولید و منتشر شد!")
-print("موضوع:", topic)
-print("تعداد کاراکتر:", len(message))
+    if text == "🏠 منوی اصلی":
+        context.user_data["mode"] = "chat"
+        await start(update, context)
+        return
+
+    if text == "🤖 چت با هوش مصنوعی":
+        context.user_data["mode"] = "chat"
+        await update.message.reply_text("سؤالت رو بفرست تا جواب بدم.")
+        return
+
+    if text == "🌍 ترجمه متن":
+        context.user_data["mode"] = "translate"
+        await update.message.reply_text("متنت رو بفرست تا ترجمه کنم.")
+        return
+
+    if text == "✍️ تولید متن":
+        context.user_data["mode"] = "write"
+        await update.message.reply_text("بگو چه متنی برات بنویسم.")
+        return
+
+    if text == "🎮 بازی و سرگرمی":
+        context.user_data["mode"] = "game"
+        await update.message.reply_text(
+            "🎯 بازی حدس عدد!\n"
+            "یک عدد بین ۱ تا ۱۰ حدس بزن."
+        )
+        import random
+        context.user_data["number"] = random.randint(1, 10)
+        return
+
+    if text == "🧩 معما و اطلاعات":
+        context.user_data["mode"] = "riddle"
+        await update.message.reply_text(
+            "🧩 معما:\n"
+            "آن چیست که هرچه از آن برداری بزرگ‌تر می‌شود؟"
+        )
+        return
+
+    if mode == "game":
+        if text.isdigit():
+            guess = int(text)
+            number = context.user_data.get("number")
+            if guess == number:
+                await update.message.reply_text("🎉 آفرین! درست حدس زدی.")
+            else:
+                await update.message.reply_text("نه! دوباره حدس بزن.")
+            return
+
+    if mode == "riddle":
+        await update.message.reply_text(
+            "جواب معما: گودال 😄\n"
+            "برای معمای بعدی دوباره گزینه معما رو بزن."
+        )
+        return
+
+    if mode == "translate":
+        prompt = "متن زیر را به فارسی ترجمه کن:\n" + text
+    elif mode == "write":
+        prompt = "طبق درخواست زیر یک متن خوب فارسی بنویس:\n" + text
+    else:
+        prompt = text
+
+    await update.message.reply_text("⏳ دارم آماده می‌کنم...")
+
+    try:
+        answer = await __import__("asyncio").to_thread(ask_ai, prompt)
+        if not answer:
+            answer = "پاسخی دریافت نشد. دوباره تلاش کن."
+        for i in range(0, len(answer), 4000):
+            await update.message.reply_text(answer[i:i+4000])
+    except Exception:
+        logging.exception("AI request failed")
+        await update.message.reply_text(
+            "الان ارتباط با هوش مصنوعی برقرار نشد. کمی بعد دوباره امتحان کن."
+        )
+
+
+def main():
+    if not TOKEN or not GROQ_KEY:
+        raise ValueError("کلیدهای ربات پیدا نشدند.")
+
+    app = Application.builder().token(TOKEN).build()
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle))
+    app.run_polling()
+
+
+if __name__ == "__main__":
+    main()
