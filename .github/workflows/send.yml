@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: دریافت کد ربات
+      - name: دریافت کد
         uses: actions/checkout@v4
 
       - name: نصب پایتون
@@ -18,11 +18,11 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: نصب درخواست‌ها
+      - name: نصب کتابخانه‌ها
         run: pip install requests
 
-      - name: اجرای ربات
-        run: python -u bot.py
+      - name: انتشار پست
+        run: python -u publish.py
         env:
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
